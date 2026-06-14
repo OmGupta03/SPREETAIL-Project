@@ -8,6 +8,7 @@ import {
   fetchGroupMembers,
   inviteUserToGroup,
   removeUserFromGroup,
+  deleteGroup,
   addExpense,
   deleteExpense,
   recordSettlement,
@@ -239,6 +240,20 @@ export default function GroupDetails() {
       await loadData();
     } catch (err) {
       alert(err.message || 'Failed to remove member.');
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    const confirmDelete = window.confirm(
+      'Are you sure you want to delete this group? All transaction logs, splits, and chat comments will be permanently erased.'
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await deleteGroup(groupId);
+      router.push('/');
+    } catch (err) {
+      alert(err.message || 'Failed to delete group.');
     }
   };
 
@@ -502,6 +517,17 @@ export default function GroupDetails() {
               >
                 <RefreshCw className="h-4 w-4" />
               </button>
+
+              {balances.simplifiedDebts.length === 0 && (
+                <button
+                  onClick={handleDeleteGroup}
+                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 hover:border-red-900 text-rose-450 hover:text-rose-400 transition-all text-xs font-semibold"
+                  title="Delete settled group"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete Group</span>
+                </button>
+              )}
 
               <button
                 onClick={() => setIsInviteOpen(true)}

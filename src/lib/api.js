@@ -137,6 +137,27 @@ export async function removeUserFromGroup(groupId, userId) {
   return true;
 }
 
+// Delete a group (only if fully settled up)
+export async function deleteGroup(groupId) {
+  if (!groupId) throw new Error('Group ID is required');
+
+  // Fetch balances to ensure everyone is fully settled
+  const balances = await calculateBalancesAndDebts(groupId);
+  const hasUnsettled = Object.values(balances.netBalances).some((bal) => Math.abs(bal) > 0.01);
+
+  if (hasUnsettled) {
+    throw new Error('Cannot delete group. All members must be fully settled up (outstanding balances must be $0.00).');
+  }
+
+  const { error } = await supabase
+    .from('groups')
+    .delete()
+    .eq('id', groupId);
+
+  if (error) throw error;
+  return true;
+}
+
 // ==========================================
 // 2. EXPENSE OPERATIONS
 // ==========================================
