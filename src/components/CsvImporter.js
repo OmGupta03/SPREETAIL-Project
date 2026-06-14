@@ -738,8 +738,27 @@ export default function CsvImporter({ onImportSuccess, currentUserId, targetGrou
 
           // Insert directly into settlements table
           await recordSettlement(groupIdToUse, payerId, payeeId, Math.abs(row.amount), row.currency);
+        } else if (row.amount === 0) {
+          // Skip zero-amount transactions (like Swiggy duplicate adjustments)
+          // since they do not affect balances and would violate database constraints.
+          console.log(`Skipped zero-amount expense: ${row.description}`);
+        } else if (row.amount < 0) {
+          // Handle negative refunds as direct positive Settlements 
+          // from the refund recipient (payer) to the other split participants.
+          // This keeps amount > 0 and avoids check constraint violations in public.expenses.
+          const payerId = userMappings[row.paid_by] || userMappings['Unknown Payer'];
+          
+          for (const split of row.splits) {
+            const payeeId = userMappings[split.userId] || userMappings['Unknown Payer'];
+            if (payeeId === payerId) continue; // Skip paying back oneself
+
+            const settlementAmt = Math.abs(split.amount);
+            if (settlementAmt > 0.01) {
+              await recordSettlement(groupIdToUse, payerId, payeeId, settlementAmt, row.currency);
+            }
+          }
         } else {
-          // Handle Expense
+          // Handle standard positive Expense
           const paidByUuid = userMappings[row.paid_by] || userMappings['Unknown Payer'];
           
           const mappedSplits = row.splits.map(s => ({
