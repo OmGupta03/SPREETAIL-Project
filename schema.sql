@@ -1,10 +1,25 @@
--- PostgreSQL Database Schema for Splitwise Clone MVP
+-- PostgreSQL Database Schema for Splitwise Clone & Expense Manager (Updated)
 -- Paste this script into your Supabase SQL Editor and run it.
 
--- 1. Create Public Users Profile Table (references auth.users)
+-- =========================================================================
+-- MIGRATION PATH FOR EXISTING MVP SCHEMAS:
+-- If you already have tables, run these alter statements to update them:
+-- =========================================================================
+-- 1. Remove references auth.users constraint to allow unregistered members
+-- ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_id_fkey;
+-- ALTER TABLE public.users ALTER COLUMN email DROP NOT NULL;
+-- 2. Add currency column and remove positive amount constraint in expenses
+-- ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS currency text NOT NULL DEFAULT 'INR';
+-- ALTER TABLE public.expenses DROP CONSTRAINT IF EXISTS expenses_amount_check;
+-- ALTER TABLE public.expenses ADD CONSTRAINT expenses_amount_check CHECK (amount <> 0);
+-- 3. Add currency column in settlements
+-- ALTER TABLE public.settlements ADD COLUMN IF NOT EXISTS currency text NOT NULL DEFAULT 'INR';
+-- =========================================================================
+
+-- 1. Create Public Users Profile Table (decoupled from auth.users to allow unregistered members from CSV)
 create table if not exists public.users (
-    id uuid references auth.users on delete cascade primary key,
-    email text not null unique,
+    id uuid default gen_random_uuid() primary key,
+    email text unique, -- Nullable because unregistered members don't have emails in the CSV
     name text not null,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
@@ -25,13 +40,14 @@ create table if not exists public.group_members (
     primary key (group_id, user_id)
 );
 
--- 4. Create Expenses Table
+-- 4. Create Expenses Table (with currency support and checking non-zero to allow refunds)
 create table if not exists public.expenses (
     id uuid default gen_random_uuid() primary key,
     group_id uuid references public.groups(id) on delete cascade not null,
-    paid_by uuid references public.users(id) on delete set null not null,
+    paid_by uuid references public.users(id) on delete set null,
     description text not null,
-    amount numeric(12, 2) not null check (amount > 0),
+    amount numeric(12, 2) not null check (amount <> 0),
+    currency text not null default 'INR',
     split_type text not null check (split_type in ('equal', 'unequal', 'percentage', 'share')),
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
@@ -46,13 +62,14 @@ create table if not exists public.expense_splits (
     share numeric(10, 2)
 );
 
--- 6. Create Settlements Table
+-- 6. Create Settlements Table (with currency support)
 create table if not exists public.settlements (
     id uuid default gen_random_uuid() primary key,
     group_id uuid references public.groups(id) on delete cascade not null,
     payer_id uuid references public.users(id) on delete set null not null,
     payee_id uuid references public.users(id) on delete set null not null,
     amount numeric(12, 2) not null check (amount > 0),
+    currency text not null default 'INR',
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     check (payer_id <> payee_id)
 );
@@ -78,7 +95,7 @@ create index if not exists idx_expense_splits_user on public.expense_splits(user
 create index if not exists idx_settlements_group on public.settlements(group_id);
 create index if not exists idx_chat_messages_expense on public.chat_messages(expense_id);
 
--- Disable Row Level Security on all tables for rapid MVP prototyping
+-- Disable Row Level Security on all tables for rapid prototyping
 alter table public.users disable row level security;
 alter table public.groups disable row level security;
 alter table public.group_members disable row level security;
