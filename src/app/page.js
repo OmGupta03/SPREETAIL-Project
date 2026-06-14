@@ -417,6 +417,9 @@ export default function Dashboard() {
                   {modalLoading ? 'Creating...' : 'Create Group'}
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* CSV IMPORT MODAL */}
