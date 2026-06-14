@@ -1,57 +1,40 @@
-# Splitwise Clone (MVP)
+# CSV Ingestion & Multi-Currency Expense Manager
 
-A simplified, responsive, and aesthetically premium Splitwise clone built using **Next.js 14**, **Tailwind CSS**, and **Supabase (PostgreSQL + Auth + Realtime)**.
+An aesthetically premium, responsive, and robust Expense Management platform built using **Next.js**, **Tailwind CSS**, and **Supabase (PostgreSQL + Auth + Realtime)**. This app supports multi-currency transaction ledgers, currency-specific greedy debt simplifications, and features an interactive CSV uploader that parses, sanitizes, and logs historical data anomalies.
 
 This project was built as an internship assignment with **Antigravity AI** acting as the primary engineering partner.
 
 ---
 
-## Features
+## Key Features
 
-1. **User Authentication**: Secure email/password login and registration managed by Supabase Auth, synced automatically to a public profiles table via Postgres triggers.
-2. **Group Management**: Users can create groups, view their groups list, and invite other registered users to join groups.
-3. **Flexible Expense Splitting**: Add expenses and split them 4 different ways:
-   * **Equally**: Split evenly among all or selected members.
-   * **Unequally**: Explicit decimal amounts specified per member.
-   * **By Percentage**: Split by specifying percentages (must sum to 100%).
-   * **By Share**: Split proportionally based on arbitrary shares (e.g. 1 share, 2 shares).
-4. **Real-time Expense Chat**: Click any expense to open a slide-out panel with its split details and an integrated chat room that updates instantly for all users via Supabase Realtime postgres changes.
-5. **Greedy Debt Simplification**: A dynamic algorithm that matches debtors and creditors within a group to collapse transaction paths (e.g. if A owes B, and B owes C, the app shows A owes C directly).
-6. **Settle Up / Record Payments**: Easily record cash/off-platform settlements between members to zero out balances.
+1. **Interactive CSV Ingest Wizard**: Parse standard CSV expense files on the client side, sanitize formatting errors (casing, commas, whitespace, decimals), normalise percentage splits, and reclassify settlement transactions. Shows a beautiful, interactive **Import Report** panel with all warnings and resolutions.
+2. **Decoupled User Profiles**: Allows importing historical CSV participants (like Aisha, Rohan, Priya, Meera, Dev, Sam, Kabir) with random UUIDs and optional email addresses. Users can sign up later and sync cleanly, resolving the strict auth bottleneck.
+3. **Multi-Currency Ledgers & Settlements**: Full native support for `INR` (Indian Rupees) and `USD` (US Dollars). Expenses and payments are stored in their native currency, preventing exchange-rate distortion.
+4. **Greedy Debt Simplification per Currency**: Run debt minimization separately for USD and INR, providing accurate simplified balance paths for each currency ledger (e.g. A owes B $20 USD and ₹5,000 INR).
+5. **Real-time Discussion Chat**: Discuss specific ledger entries in real-time inside the slide-out expense details drawer using Supabase Realtime client listeners.
+6. **Negative Refund Splits**: Negative expense values are supported natively (e.g., `-30 USD` for canceled bookings), correctly reducing split debts.
 
 ---
 
 ## Tech Stack
 
-* **Frontend/Backend**: Next.js 14 (App Router)
+* **Frontend/Backend Framework**: Next.js 16 (App Router)
 * **Styling**: Tailwind CSS v4 (configured via postCSS)
 * **Database**: PostgreSQL (Supabase)
 * **Authentication**: Supabase Auth (JWT)
-* **Real-time Sync**: Supabase Realtime client listeners
+* **Real-time Sync**: Supabase Realtime subscriptions
 * **Hosting**: Vercel
-
----
-
-## Database Schema
-
-The database utilizes the following tables (defined in `schema.sql`):
-* `users`: Stores profile names and emails, synced from auth.
-* `groups`: Group details.
-* `group_members`: Connects users to groups.
-* `expenses`: Ledger entries for costs.
-* `expense_splits`: Maps splits (amounts, percentages, shares) per user per expense.
-* `settlements`: Ledger entries for direct payments.
-* `chat_messages`: Comments posted inside expenses.
 
 ---
 
 ## Setup Instructions
 
 ### 1. Database Configuration (Supabase)
-1. Create a free project on [Supabase](https://supabase.com).
+1. Create a project on [Supabase](https://supabase.com).
 2. Go to the **SQL Editor** tab in your Supabase dashboard.
-3. Copy the contents of [`schema.sql`](file:///c:/Users/91904/Desktop/SpreeTail/schema.sql) from the root of this project and run it. This will create all tables, indexes, and triggers automatically.
-4. Go to **Project Settings** -> **API** and retrieve your `Project URL` and `anon public key`.
+3. Copy the contents of [`schema.sql`](file:///c:/Users/91904/Desktop/SpreeTail/schema.sql) and run it. This will build all required tables, indexes, and triggers. If you have an existing database, run the `ALTER` migration block at the top of `schema.sql`.
+4. Retrieve your `Project URL` and `anon public key` from **Project Settings** -> **API**.
 
 ### 2. Environment Setup
 1. Create a `.env.local` file in the root of the project:
@@ -79,5 +62,7 @@ The database utilizes the following tables (defined in `schema.sql`):
 
 ## Project Documentation
 
-* **[AI_CONTEXT.md](file:///c:/Users/91904/Desktop/SpreeTail/AI_CONTEXT.md)**: The single source of truth documenting architecture, schema, state logic, and changes.
-* **[BUILD_PLAN.md](file:///c:/Users/91904/Desktop/SpreeTail/BUILD_PLAN.md)**: Documenting product research, tech stack decisions, and tradeoffs.
+* **[`SCOPE.md`](file:///c:/Users/91904/Desktop/SpreeTail/SCOPE.md)**: Anomaly log of all CSV data problems (like percentage mismatch, date formats, blanks, duplicates) and how they are handled, along with the database schema.
+* **[`DECISIONS.md`](file:///c:/Users/91904/Desktop/SpreeTail/DECISIONS.md)**: A decision log detailing architecture choices, options considered, and rationales (decoupling users, multi-currency isolation, client parsing).
+* **[`AI_USAGE.md`](file:///c:/Users/91904/Desktop/SpreeTail/AI_USAGE.md)**: AI tools used, prompts, and 3 concrete cases where the AI made a mistake, how it was caught, and how it was corrected.
+* **[`schema.sql`](file:///c:/Users/91904/Desktop/SpreeTail/schema.sql)**: Database tables, constraints, indexes, and triggers.
