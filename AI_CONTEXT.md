@@ -257,6 +257,7 @@ We will build a clean, responsive Dashboard layout:
 
 ## 7. Change Log & History
 
+* **2026-06-14 16:50**: Added Group Deletion feature. Deleting a group cascades to remove all members, expenses, settlements, splits, and comments in the database. Added safety rule in `deleteGroup` to block deletion unless the group is fully settled up (all net balances are $0.00). Conditionally rendered the "Delete Group" button in the group header.
 * **2026-06-14 16:30**: Fixed profile fetch crash where `.single()` failed if the DB trigger had not committed/run. Switched to `maybeSingle()` and added client-side auto-creation fallback to ensure `public.users` sync is flawless.
 * **2026-06-14 15:15**: Confirmed technical stack choices: Tailwind CSS v3, Supabase (PostgreSQL + Auth + Realtime), Greedy Debt Simplification, and Cloud Supabase environment for immediate deployment. Updated `AI_CONTEXT.md` accordingly.
 * **2026-06-14 15:10**: Initialized proposed specification for MVP based on fast-delivery constraints.
