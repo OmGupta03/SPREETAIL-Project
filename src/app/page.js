@@ -4,15 +4,16 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { fetchUserGroups, createGroup, calculateBalancesAndDebts } from '@/lib/api';
-import { Plus, LogOut, Users, User, ArrowUpRight, ArrowDownLeft, Scale, RefreshCw } from 'lucide-react';
+import { Plus, LogOut, Users, User, ArrowUpRight, ArrowDownLeft, Scale, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import Link from 'next/link';
+import CsvImporter from '@/components/CsvImporter';
 
 export default function Dashboard() {
   const { user, profile, loading, signOut } = useAuth();
   const router = useRouter();
 
   const [groups, setGroups] = useState([]);
-  const [groupBalances, setGroupBalances] = useState({}); // groupId -> netBalance
+  const [groupBalances, setGroupBalances] = useState({}); // groupId -> { consolidated, INR, USD }
   const [dataLoading, setDataLoading] = useState(true);
   
   // Create group modal state
@@ -20,6 +21,9 @@ export default function Dashboard() {
   const [newGroupName, setNewGroupName] = useState('');
   const [modalError, setModalError] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
+
+  // CSV Import state
+  const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -41,10 +45,14 @@ export default function Dashboard() {
         userGroups.map(async (g) => {
           try {
             const groupData = await calculateBalancesAndDebts(g.id);
-            balances[g.id] = groupData.netBalances[user.id] || 0;
+            balances[g.id] = {
+              consolidated: groupData.netBalances[user.id] || 0,
+              INR: groupData.netBalancesByCurrency?.INR?.[user.id] || 0,
+              USD: groupData.netBalancesByCurrency?.USD?.[user.id] || 0,
+            };
           } catch (err) {
             console.error(`Error calculating balance for group ${g.id}:`, err);
-            balances[g.id] = 0;
+            balances[g.id] = { consolidated: 0, INR: 0, USD: 0 };
           }
         })
       );
@@ -86,18 +94,31 @@ export default function Dashboard() {
   };
 
   // Calculate overall balances
-  let totalOwed = 0; // positive balances
-  let totalOwe = 0;  // absolute sum of negative balances
+  let totalOwedINR = 0;
+  let totalOweINR = 0;
+  let totalOwedUSD = 0;
+  let totalOweUSD = 0;
   
   Object.values(groupBalances).forEach((bal) => {
-    if (bal > 0) {
-      totalOwed += bal;
-    } else if (bal < 0) {
-      totalOwe += Math.abs(bal);
+    // INR
+    const inr = bal.INR || 0;
+    if (inr > 0) {
+      totalOwedINR += inr;
+    } else if (inr < 0) {
+      totalOweINR += Math.abs(inr);
+    }
+
+    // USD
+    const usd = bal.USD || 0;
+    if (usd > 0) {
+      totalOwedUSD += usd;
+    } else if (usd < 0) {
+      totalOweUSD += Math.abs(usd);
     }
   });
 
-  const overallBalance = totalOwed - totalOwe;
+  const overallBalanceINR = totalOwedINR - totalOweINR;
+  const overallBalanceUSD = totalOwedUSD - totalOweUSD;
 
   if (loading || !user) {
     return (
@@ -158,36 +179,56 @@ export default function Dashboard() {
           <div className="absolute top-[-40%] right-[-10%] h-[180px] w-[180px] rounded-full bg-emerald-500/10 blur-[60px] pointer-events-none"></div>
           <div className="absolute bottom-[-30%] left-[5%] h-[140px] w-[140px] rounded-full bg-indigo-500/10 blur-[50px] pointer-events-none"></div>
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <h2 className="text-xs font-semibold text-slate-450 uppercase tracking-wider">Overall Balance</h2>
-              <div className={`text-4xl font-extrabold mt-2 tracking-tight ${
-                overallBalance > 0.01 
-                  ? 'text-emerald-400' 
-                  : overallBalance < -0.01 
-                  ? 'text-rose-400' 
-                  : 'text-white'
-              }`}>
-                {overallBalance > 0.01 ? '+' : ''}
-                ${overallBalance.toFixed(2)}
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xs font-semibold text-slate-450 uppercase tracking-wider">Overall Balance</h2>
+                <div className="flex flex-col gap-2 mt-2">
+                  <div className={`text-2xl md:text-3xl font-extrabold tracking-tight ${
+                    overallBalanceINR > 0.01 
+                      ? 'text-emerald-400' 
+                      : overallBalanceINR < -0.01 
+                      ? 'text-rose-400' 
+                      : 'text-slate-300'
+                  }`}>
+                    {overallBalanceINR > 0.01 ? '+' : ''}
+                    ₹{overallBalanceINR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-semibold text-slate-550">INR</span>
+                  </div>
+                  <div className={`text-2xl md:text-3xl font-extrabold tracking-tight ${
+                    overallBalanceUSD > 0.01 
+                      ? 'text-emerald-400' 
+                      : overallBalanceUSD < -0.01 
+                      ? 'text-rose-400' 
+                      : 'text-slate-300'
+                  }`}>
+                    {overallBalanceUSD > 0.01 ? '+' : ''}
+                    ${overallBalanceUSD.toFixed(2)} <span className="text-xs font-semibold text-slate-550">USD</span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">Net balances separated by currency across all your groups.</p>
               </div>
-              <p className="text-xs text-slate-500 mt-1.5">Net balance aggregated across all your groups.</p>
             </div>
 
-            <div className="grid grid-cols-2 md:flex items-center gap-4 md:gap-8 border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-8">
-              <div className="space-y-1">
-                <div className="flex items-center space-x-1 text-slate-400 text-xs font-semibold uppercase tracking-wider">
-                  <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
+            <div className="grid grid-cols-2 md:flex items-center gap-6 md:gap-8 border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-8">
+              <div className="space-y-2">
+                <div className="flex items-center space-x-1 text-slate-455 text-xs font-semibold uppercase tracking-wider">
+                  <ArrowUpRight className="h-3.5 w-3.5 text-emerald-450" />
                   <span>You are owed</span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-emerald-400">${totalOwed.toFixed(2)}</p>
+                <div className="space-y-1">
+                  <p className="text-base md:text-lg font-bold text-emerald-400">₹{totalOwedINR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-base md:text-lg font-bold text-emerald-400">${totalOwedUSD.toFixed(2)}</p>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <div className="flex items-center space-x-1 text-slate-400 text-xs font-semibold uppercase tracking-wider">
-                  <ArrowDownLeft className="h-3.5 w-3.5 text-rose-400" />
+              <div className="space-y-2">
+                <div className="flex items-center space-x-1 text-slate-455 text-xs font-semibold uppercase tracking-wider">
+                  <ArrowDownLeft className="h-3.5 w-3.5 text-rose-455" />
                   <span>You owe</span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-rose-400">${totalOwe.toFixed(2)}</p>
+                <div className="space-y-1">
+                  <p className="text-base md:text-lg font-bold text-rose-450">₹{totalOweINR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-base md:text-lg font-bold text-rose-450">${totalOweUSD.toFixed(2)}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -209,6 +250,14 @@ export default function Dashboard() {
                 title="Refresh balances"
               >
                 <RefreshCw className={`h-4 w-4 ${dataLoading ? 'animate-spin' : ''}`} />
+              </button>
+
+              <button
+                onClick={() => setIsCsvImportOpen(true)}
+                className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 shadow-md font-semibold text-sm transition-all"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-emerald-450" />
+                <span>Import CSV</span>
               </button>
 
               <button
@@ -267,21 +316,36 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      {balance > 0.01 ? (
+                    <div className="text-right flex flex-col gap-1">
+                      {/* Display INR */}
+                      {(balance.INR > 0.01 || balance.INR < -0.01) && (
                         <div>
-                          <p className="text-[10px] uppercase font-semibold tracking-wider text-slate-500">you are owed</p>
-                          <p className="font-extrabold text-emerald-450 text-sm mt-0.5">${balance.toFixed(2)}</p>
+                          <p className="text-[9px] uppercase font-semibold tracking-wider text-slate-550">
+                            {balance.INR > 0 ? 'owed' : 'owe'} (INR)
+                          </p>
+                          <p className={`font-extrabold text-xs mt-0.5 ${balance.INR > 0 ? 'text-emerald-450' : 'text-rose-455'}`}>
+                            ₹{Math.abs(balance.INR).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </p>
                         </div>
-                      ) : balance < -0.01 ? (
+                      )}
+                      
+                      {/* Display USD */}
+                      {(balance.USD > 0.01 || balance.USD < -0.01) && (
                         <div>
-                          <p className="text-[10px] uppercase font-semibold tracking-wider text-slate-500">you owe</p>
-                          <p className="font-extrabold text-rose-400 text-sm mt-0.5">${Math.abs(balance).toFixed(2)}</p>
+                          <p className="text-[9px] uppercase font-semibold tracking-wider text-slate-550">
+                            {balance.USD > 0 ? 'owed' : 'owe'} (USD)
+                          </p>
+                          <p className={`font-extrabold text-xs mt-0.5 ${balance.USD > 0 ? 'text-emerald-455' : 'text-rose-455'}`}>
+                            ${Math.abs(balance.USD).toFixed(2)}
+                          </p>
                         </div>
-                      ) : (
+                      )}
+
+                      {/* Settled up */}
+                      {Math.abs(balance.INR || 0) <= 0.01 && Math.abs(balance.USD || 0) <= 0.01 && (
                         <div>
-                          <p className="text-[10px] uppercase font-semibold tracking-wider text-slate-650">settled up</p>
-                          <p className="font-bold text-slate-550 text-sm mt-0.5">$0.00</p>
+                          <p className="text-[9px] uppercase font-semibold tracking-wider text-slate-650">settled up</p>
+                          <p className="font-bold text-slate-550 text-xs mt-0.5">₹0.00</p>
                         </div>
                       )}
                     </div>
@@ -353,7 +417,38 @@ export default function Dashboard() {
                   {modalLoading ? 'Creating...' : 'Create Group'}
                 </button>
               </div>
-            </form>
+      )}
+
+      {/* CSV IMPORT MODAL */}
+      {isCsvImportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-6 max-h-[95vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+                  <FileSpreadsheet className="h-5 w-5 text-emerald-450" />
+                  <span>CSV Expense Ingestion Wizard</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Parse, sanitise, and ingest your historical expense logs</p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsCsvImportOpen(false);
+                }}
+                className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg border border-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <CsvImporter 
+              currentUserId={user.id} 
+              onImportSuccess={(newGroupId) => {
+                setIsCsvImportOpen(false);
+                loadData();
+                router.push(`/groups/${newGroupId}`);
+              }} 
+            />
           </div>
         </div>
       )}
