@@ -35,9 +35,11 @@ import {
   UserCheck,
   X,
   RefreshCw,
-  Scale
+  Scale,
+  FileSpreadsheet
 } from 'lucide-react';
 import Link from 'next/link';
+import CsvImporter from '@/components/CsvImporter';
 
 export default function GroupDetails() {
   const { id: groupId } = useParams();
@@ -49,7 +51,7 @@ export default function GroupDetails() {
   const [members, setMembers] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [settlements, setSettlements] = useState([]);
-  const [balances, setBalances] = useState({ netBalances: {}, simplifiedDebts: [] });
+  const [balances, setBalances] = useState({ netBalances: {}, simplifiedDebts: [], netBalancesByCurrency: { INR: {}, USD: {} }, simplifiedDebtsByCurrency: { INR: [], USD: [] } });
   const [pageLoading, setPageLoading] = useState(true);
 
   // Invite member state
@@ -65,6 +67,7 @@ export default function GroupDetails() {
   const [settleAmount, setSettleAmount] = useState('');
   const [settleError, setSettleError] = useState('');
   const [settleLoading, setSettleLoading] = useState(false);
+  const [settleCurrency, setSettleCurrency] = useState('INR');
 
   // Add Expense state
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
@@ -72,12 +75,16 @@ export default function GroupDetails() {
   const [expAmount, setExpAmount] = useState('');
   const [expPayer, setExpPayer] = useState('');
   const [expSplitType, setExpSplitType] = useState('equal'); // equal, unequal, percentage, share
+  const [expCurrency, setExpCurrency] = useState('INR');
   
   // Custom split inputs: userId -> string value
   const [splitInputs, setSplitInputs] = useState({}); 
   const [splitCheckboxes, setSplitCheckboxes] = useState({}); // userId -> boolean (for equal split select)
   const [expenseError, setExpenseError] = useState('');
   const [expenseLoading, setExpenseLoading] = useState(false);
+
+  // CSV Import state
+  const [isCsvOpen, setIsCsvOpen] = useState(false);
 
   // Selected Expense Details Drawer state
   const [selectedExpense, setSelectedExpense] = useState(null);
@@ -194,6 +201,7 @@ export default function GroupDetails() {
       setExpDescription('');
       setExpAmount('');
       setExpSplitType('equal');
+      setExpCurrency('INR');
       setExpenseError('');
     }
   }, [isExpenseOpen, members, user]);
@@ -205,6 +213,7 @@ export default function GroupDetails() {
       const alternative = members.find((m) => m.id !== user.id);
       setSettlePayee(alternative ? alternative.id : '');
       setSettleAmount('');
+      setSettleCurrency('INR');
       setSettleError('');
     }
   }, [isSettleOpen, members, user]);
@@ -277,7 +286,7 @@ export default function GroupDetails() {
 
     setSettleLoading(true);
     try {
-      await recordSettlement(groupId, settlePayer, settlePayee, amt);
+      await recordSettlement(groupId, settlePayer, settlePayee, amt, settleCurrency);
       setIsSettleOpen(false);
       await loadData();
     } catch (err) {
@@ -431,7 +440,7 @@ export default function GroupDetails() {
 
     setExpenseLoading(true);
     try {
-      await addExpense(groupId, expPayer, expDescription.trim(), totalAmt, expSplitType, splits);
+      await addExpense(groupId, expPayer, expDescription.trim(), totalAmt, expSplitType, splits, expCurrency);
       setIsExpenseOpen(false);
       await loadData();
     } catch (err) {
@@ -477,7 +486,8 @@ export default function GroupDetails() {
   }
 
   // Calculate my balance in this group
-  const myBalance = balances.netBalances[user.id] || 0;
+  const myBalanceINR = balances.netBalancesByCurrency?.INR?.[user.id] || 0;
+  const myBalanceUSD = balances.netBalancesByCurrency?.USD?.[user.id] || 0;
 
   // Compile full ledger (combine expenses and settlements, sort chronological)
   const ledger = [
@@ -521,13 +531,21 @@ export default function GroupDetails() {
               {balances.simplifiedDebts.length === 0 && (
                 <button
                   onClick={handleDeleteGroup}
-                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 hover:border-red-900 text-rose-450 hover:text-rose-400 transition-all text-xs font-semibold"
+                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 hover:border-red-900 text-rose-455 hover:text-rose-400 transition-all text-xs font-semibold"
                   title="Delete settled group"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   <span>Delete Group</span>
                 </button>
               )}
+
+              <button
+                onClick={() => setIsCsvOpen(true)}
+                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-200 hover:text-white transition-all text-xs font-semibold"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-450" />
+                <span>Import CSV</span>
+              </button>
 
               <button
                 onClick={() => setIsInviteOpen(true)}
@@ -549,29 +567,33 @@ export default function GroupDetails() {
             {/* Net Balance Status summary card */}
             <div className="relative overflow-hidden p-6 bg-gradient-to-br from-slate-900/90 via-slate-900/50 to-slate-950 border border-slate-800/80 rounded-2xl shadow-xl backdrop-blur-xl">
               <div className="absolute top-[-30%] right-[-10%] h-[120px] w-[120px] rounded-full bg-emerald-500/5 blur-[40px] pointer-events-none"></div>
-              <div className="relative z-10">
+              <div className="relative z-10 space-y-3">
                 <h2 className="text-xs font-semibold text-slate-450 uppercase tracking-wider">My Group Balance</h2>
-                <div className={`text-3xl font-extrabold mt-1.5 tracking-tight ${
-                  myBalance > 0.01 
-                    ? 'text-emerald-400' 
-                    : myBalance < -0.01 
-                    ? 'text-rose-400' 
-                    : 'text-slate-350'
-                }`}>
-                  {myBalance > 0.01 ? '+' : ''}${myBalance.toFixed(2)}
+                <div className="space-y-1">
+                  <div className={`text-xl font-extrabold tracking-tight ${
+                    myBalanceINR > 0.01 
+                      ? 'text-emerald-400' 
+                      : myBalanceINR < -0.01 
+                      ? 'text-rose-450' 
+                      : 'text-slate-500'
+                  }`}>
+                    {myBalanceINR > 0.01 ? '+' : ''}₹{myBalanceINR.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal text-slate-550">INR</span>
+                  </div>
+                  <div className={`text-xl font-extrabold tracking-tight ${
+                    myBalanceUSD > 0.01 
+                      ? 'text-emerald-400' 
+                      : myBalanceUSD < -0.01 
+                      ? 'text-rose-400' 
+                      : 'text-slate-500'
+                  }`}>
+                    {myBalanceUSD > 0.01 ? '+' : ''}${myBalanceUSD.toFixed(2)} <span className="text-[10px] font-normal text-slate-550">USD</span>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  {myBalance > 0.01 
-                    ? 'You are owed money in this group' 
-                    : myBalance < -0.01 
-                    ? 'You owe money in this group' 
-                    : 'You are completely settled up!'}
-                </p>
               </div>
               
               <button
                 onClick={() => setIsSettleOpen(true)}
-                className="w-full mt-5 py-2.5 px-4 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-450 hover:text-emerald-400 rounded-xl font-bold text-sm transition-all flex items-center justify-center space-x-2 shadow-md shadow-emerald-500/2"
+                className="w-full mt-5 py-2.5 px-4 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-455 hover:text-emerald-400 rounded-xl font-bold text-sm transition-all flex items-center justify-center space-x-2 shadow-md shadow-emerald-500/2"
               >
                 <DollarSign className="h-4 w-4" />
                 <span>Record Settle Up</span>
@@ -592,8 +614,12 @@ export default function GroupDetails() {
 
               <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
                 {members.map((m) => {
-                  const bal = balances.netBalances[m.id] || 0;
+                  const balINR = balances.netBalancesByCurrency?.INR?.[m.id] || 0;
+                  const balUSD = balances.netBalancesByCurrency?.USD?.[m.id] || 0;
                   const isCurrentUser = m.id === user.id;
+                  
+                  const isSettled = Math.abs(balINR) <= 0.01 && Math.abs(balUSD) <= 0.01;
+                  
                   return (
                     <div key={m.id} className="flex items-center justify-between group/member text-sm">
                       <div className="flex items-center space-x-2.5">
@@ -608,18 +634,26 @@ export default function GroupDetails() {
                       </div>
 
                       <div className="flex items-center space-x-3">
-                        <div className="text-right">
-                          {bal > 0.01 ? (
-                            <span className="text-emerald-400 font-semibold text-xs">+${bal.toFixed(2)}</span>
-                          ) : bal < -0.01 ? (
-                            <span className="text-rose-400 font-semibold text-xs">-${Math.abs(bal).toFixed(2)}</span>
-                          ) : (
-                            <span className="text-slate-550 text-xs">$0.00</span>
+                        <div className="text-right flex flex-col items-end">
+                          {balINR > 0.01 ? (
+                            <span className="text-emerald-400 font-semibold text-[11px]">+₹{balINR.toLocaleString()}</span>
+                          ) : balINR < -0.01 ? (
+                            <span className="text-rose-400 font-semibold text-[11px]">-₹{Math.abs(balINR).toLocaleString()}</span>
+                          ) : null}
+                          
+                          {balUSD > 0.01 ? (
+                            <span className="text-emerald-400 font-semibold text-[11px]">+${balUSD.toFixed(2)}</span>
+                          ) : balUSD < -0.01 ? (
+                            <span className="text-rose-405 font-semibold text-[11px]">-${Math.abs(balUSD).toFixed(2)}</span>
+                          ) : null}
+
+                          {isSettled && (
+                            <span className="text-slate-550 text-xs">₹0.00</span>
                           )}
                         </div>
 
                         {/* Delete Member (only show if balance is 0 and not current user) */}
-                        {!isCurrentUser && Math.abs(bal) < 0.01 && (
+                        {!isCurrentUser && isSettled && (
                           <button
                             onClick={() => handleRemoveMember(m.id, m.name)}
                             className="p-1 rounded text-slate-550 hover:text-rose-400 hover:bg-slate-800 transition-all opacity-0 group-hover/member:opacity-100"
@@ -642,31 +676,63 @@ export default function GroupDetails() {
                 <span>Simplified Debts</span>
               </h3>
 
-              {balances.simplifiedDebts.length === 0 ? (
+              {balances.simplifiedDebtsByCurrency?.INR?.length === 0 && balances.simplifiedDebtsByCurrency?.USD?.length === 0 ? (
                 <p className="text-xs text-slate-500 italic py-2">No debts to settle. Everything is perfectly balanced!</p>
               ) : (
-                <div className="space-y-3.5">
-                  {balances.simplifiedDebts.map((debt, index) => {
-                    const isFromMe = debt.from === user.id;
-                    const isToMe = debt.to === user.id;
-                    
-                    return (
-                      <div key={index} className="flex items-center space-x-3 text-xs bg-slate-950/45 p-3 rounded-xl border border-slate-850">
-                        <div className="flex-1 min-w-0">
-                          <span className={isFromMe ? 'text-rose-350 font-semibold' : 'text-slate-300 font-medium'}>
-                            {isFromMe ? 'You' : debt.fromUser?.name || 'Someone'}
-                          </span>
-                          <span className="text-slate-500 mx-1.5">owes</span>
-                          <span className={isToMe ? 'text-emerald-355 font-semibold' : 'text-slate-300 font-medium'}>
-                            {isToMe ? 'You' : debt.toUser?.name || 'Someone'}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-1 font-bold text-sm bg-slate-850 px-2.5 py-1 rounded-lg border border-slate-800 text-slate-200">
-                          ${debt.amount.toFixed(2)}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="space-y-4">
+                  {/* INR Debts */}
+                  {balances.simplifiedDebtsByCurrency?.INR?.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">INR DEBTS</h4>
+                      {balances.simplifiedDebtsByCurrency.INR.map((debt, index) => {
+                        const isFromMe = debt.from === user.id;
+                        const isToMe = debt.to === user.id;
+                        return (
+                          <div key={`inr-${index}`} className="flex items-center space-x-3 text-xs bg-slate-950/45 p-2.5 rounded-xl border border-slate-850">
+                            <div className="flex-1 min-w-0">
+                              <span className={isFromMe ? 'text-rose-350 font-semibold' : 'text-slate-355'}>
+                                {isFromMe ? 'You' : debt.fromUser?.name || 'Someone'}
+                              </span>
+                              <span className="text-slate-500 mx-1">owes</span>
+                              <span className={isToMe ? 'text-emerald-355 font-semibold' : 'text-slate-355'}>
+                                {isToMe ? 'You' : debt.toUser?.name || 'Someone'}
+                              </span>
+                            </div>
+                            <div className="font-bold text-xs bg-slate-850 px-2 py-0.5 rounded-lg border border-slate-800 text-slate-200">
+                              ₹{debt.amount.toLocaleString()}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* USD Debts */}
+                  {balances.simplifiedDebtsByCurrency?.USD?.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">USD DEBTS</h4>
+                      {balances.simplifiedDebtsByCurrency.USD.map((debt, index) => {
+                        const isFromMe = debt.from === user.id;
+                        const isToMe = debt.to === user.id;
+                        return (
+                          <div key={`usd-${index}`} className="flex items-center space-x-3 text-xs bg-slate-950/45 p-2.5 rounded-xl border border-slate-850">
+                            <div className="flex-1 min-w-0">
+                              <span className={isFromMe ? 'text-rose-350 font-semibold' : 'text-slate-355'}>
+                                {isFromMe ? 'You' : debt.fromUser?.name || 'Someone'}
+                              </span>
+                              <span className="text-slate-500 mx-1">owes</span>
+                              <span className={isToMe ? 'text-emerald-355 font-semibold' : 'text-slate-355'}>
+                                {isToMe ? 'You' : debt.toUser?.name || 'Someone'}
+                              </span>
+                            </div>
+                            <div className="font-bold text-xs bg-slate-850 px-2 py-0.5 rounded-lg border border-slate-800 text-slate-200">
+                              ${debt.amount.toFixed(2)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -725,9 +791,20 @@ export default function GroupDetails() {
                         </div>
 
                         <div className="flex items-center space-x-4 text-right">
-                          <div>
-                            <p className="text-xs text-slate-500">total</p>
-                            <p className="font-bold text-white text-sm">${parseFloat(item.amount).toFixed(2)}</p>
+                          <div className="flex items-center space-x-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              item.currency === 'USD' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            }`}>
+                              {item.currency}
+                            </span>
+                            <div>
+                              <p className="text-[10px] text-slate-500">total</p>
+                              <p className={`font-bold text-sm ${parseFloat(item.amount) < 0 ? 'text-rose-455' : 'text-white'}`}>
+                                {parseFloat(item.amount) < 0 ? '-' : ''}
+                                {item.currency === 'USD' ? '$' : '₹'}
+                                {Math.abs(parseFloat(item.amount)).toFixed(2)}
+                              </p>
+                            </div>
                           </div>
                           
                           <button
@@ -769,8 +846,15 @@ export default function GroupDetails() {
                           </div>
                         </div>
 
-                        <div className="text-right bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl font-bold text-xs text-emerald-400">
-                          ${parseFloat(item.amount).toFixed(2)}
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-1 rounded text-[9px] font-bold ${
+                            item.currency === 'USD' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-emerald-500/10 text-emerald-400'
+                          }`}>
+                            {item.currency}
+                          </span>
+                          <div className="text-right bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl font-bold text-xs text-emerald-400">
+                            {item.currency === 'USD' ? '$' : '₹'}{parseFloat(item.amount).toFixed(2)}
+                          </div>
                         </div>
                       </div>
                     );
@@ -810,7 +894,10 @@ export default function GroupDetails() {
             <div className="p-5 border-b border-slate-800 bg-slate-950/20 space-y-4">
               <div className="flex justify-between items-baseline">
                 <span className="text-xs text-slate-450">Total Amount</span>
-                <span className="text-2xl font-extrabold text-white">${parseFloat(selectedExpense.amount).toFixed(2)}</span>
+                <span className="text-2xl font-extrabold text-white">
+                  {selectedExpense.currency === 'USD' ? '$' : '₹'}
+                  {Math.abs(parseFloat(selectedExpense.amount)).toFixed(2)}
+                </span>
               </div>
 
               <div className="space-y-2.5">
@@ -820,7 +907,8 @@ export default function GroupDetails() {
                     <div key={split.id} className="flex justify-between items-center">
                       <span className="text-slate-350">{split.user?.name}</span>
                       <span className="font-bold text-slate-200">
-                        ${parseFloat(split.amount).toFixed(2)}
+                        {selectedExpense.currency === 'USD' ? '$' : '₹'}
+                        {Math.abs(parseFloat(split.amount)).toFixed(2)}
                         {selectedExpense.split_type === 'percentage' && split.percentage && ` (${split.percentage}%)`}
                         {selectedExpense.split_type === 'share' && split.share && ` (${split.share} shares)`}
                       </span>
@@ -1019,18 +1107,28 @@ export default function GroupDetails() {
 
               <div>
                 <label htmlFor="settleAmount" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Amount ($)
+                  Amount
                 </label>
-                <input
-                  id="settleAmount"
-                  type="number"
-                  step="0.01"
-                  required
-                  placeholder="0.00"
-                  value={settleAmount}
-                  onChange={(e) => setSettleAmount(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-950/60 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                />
+                <div className="flex space-x-2">
+                  <select
+                    value={settleCurrency}
+                    onChange={(e) => setSettleCurrency(e.target.value)}
+                    className="px-2.5 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="INR">₹ INR</option>
+                    <option value="USD">$ USD</option>
+                  </select>
+                  <input
+                    id="settleAmount"
+                    type="number"
+                    step="0.01"
+                    required
+                    placeholder="0.00"
+                    value={settleAmount}
+                    onChange={(e) => setSettleAmount(e.target.value)}
+                    className="flex-1 px-4 py-3 bg-slate-950/60 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-2">
@@ -1093,18 +1191,28 @@ export default function GroupDetails() {
 
                 <div className="col-span-2 sm:col-span-1">
                   <label htmlFor="expAmount" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                    Amount ($)
+                    Amount
                   </label>
-                  <input
-                    id="expAmount"
-                    type="number"
-                    step="0.01"
-                    required
-                    placeholder="0.00"
-                    value={expAmount}
-                    onChange={(e) => setExpAmount(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
+                  <div className="flex space-x-2">
+                    <select
+                      value={expCurrency}
+                      onChange={(e) => setExpCurrency(e.target.value)}
+                      className="px-2.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    >
+                      <option value="INR">₹ INR</option>
+                      <option value="USD">$ USD</option>
+                    </select>
+                    <input
+                      id="expAmount"
+                      type="number"
+                      step="0.001"
+                      required
+                      placeholder="0.00"
+                      value={expAmount}
+                      onChange={(e) => setExpAmount(e.target.value)}
+                      className="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1192,7 +1300,7 @@ export default function GroupDetails() {
                             className="w-24 px-3 py-1.5 bg-slate-950 border border-slate-850 rounded-lg text-center text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                           />
                           <span className="text-slate-500 font-bold w-4">
-                            {expSplitType === 'unequal' ? '$' : expSplitType === 'percentage' ? '%' : 'sh'}
+                            {expSplitType === 'unequal' ? (expCurrency === 'USD' ? '$' : '₹') : expSplitType === 'percentage' ? '%' : 'sh'}
                           </span>
                         </div>
                       </div>
@@ -1218,6 +1326,40 @@ export default function GroupDetails() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CSV IMPORT MODAL */}
+      {isCsvOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-6 max-h-[95vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+                  <FileSpreadsheet className="h-5 w-5 text-emerald-450" />
+                  <span>CSV Ingestion Wizard</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Ingest historical expenses directly into this group</p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsCsvOpen(false);
+                }}
+                className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg border border-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <CsvImporter 
+              currentUserId={user.id} 
+              targetGroupId={groupId}
+              onImportSuccess={() => {
+                setIsCsvOpen(false);
+                loadData();
+              }} 
+            />
           </div>
         </div>
       )}
