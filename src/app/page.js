@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { fetchUserGroups, createGroup, calculateBalancesAndDebts } from '@/lib/api';
-import { Plus, LogOut, Users, User, ArrowUpRight, ArrowDownLeft, Scale, RefreshCw, FileSpreadsheet } from 'lucide-react';
+import { fetchUserGroups, createGroup, calculateBalancesAndDebts, deleteGroup } from '@/lib/api';
+import { Plus, LogOut, Users, User, ArrowUpRight, ArrowDownLeft, Scale, RefreshCw, FileSpreadsheet, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import CsvImporter from '@/components/CsvImporter';
 
@@ -90,6 +90,22 @@ export default function Dashboard() {
       setModalError(err.message || 'Failed to create group');
     } finally {
       setModalLoading(false);
+    }
+  };
+
+  const handleDeleteGroup = async (e, groupId, groupName) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete "${groupName}"? All transaction logs, splits, and chat comments will be permanently erased.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await deleteGroup(groupId);
+      await loadData();
+    } catch (err) {
+      alert(err.message || 'Failed to delete group.');
     }
   };
 
@@ -295,61 +311,70 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {groups.map((group) => {
-                const balance = groupBalances[group.id] || 0;
+                const balance = groupBalances[group.id] || { INR: 0, USD: 0 };
                 return (
-                  <Link
-                    key={group.id}
-                    href={`/groups/${group.id}`}
-                    className="group flex items-center justify-between p-6 bg-slate-900/30 hover:bg-slate-900/60 border border-slate-850/60 hover:border-emerald-500/30 rounded-2xl transition-all duration-300 hover:-translate-y-1 shadow-lg hover:shadow-emerald-500/5"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="h-12 w-12 rounded-xl bg-slate-850 border border-slate-800 flex items-center justify-center text-slate-350 group-hover:bg-gradient-to-tr group-hover:from-emerald-500 group-hover:to-teal-400 group-hover:text-slate-950 transition-all duration-300 shadow-md">
-                        <Users className="h-5.5 w-5.5" />
+                  <div key={group.id} className="relative group/card">
+                    <Link
+                      href={`/groups/${group.id}`}
+                      className="group flex items-center justify-between p-6 bg-slate-900/30 hover:bg-slate-900/60 border border-slate-850/60 hover:border-emerald-500/30 rounded-2xl transition-all duration-300 hover:-translate-y-1 shadow-lg hover:shadow-emerald-500/5 pr-14"
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="h-12 w-12 rounded-xl bg-slate-850 border border-slate-800 flex items-center justify-center text-slate-350 group-hover:bg-gradient-to-tr group-hover:from-emerald-500 group-hover:to-teal-400 group-hover:text-slate-950 transition-all duration-300 shadow-md">
+                          <Users className="h-5.5 w-5.5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-white text-base group-hover:text-emerald-450 transition-colors">
+                            {group.name}
+                          </h3>
+                          <p className="text-slate-500 text-xs mt-0.5">
+                            Created {new Date(group.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-white text-base group-hover:text-emerald-450 transition-colors">
-                          {group.name}
-                        </h3>
-                        <p className="text-slate-500 text-xs mt-0.5">
-                          Created {new Date(group.created_at).toLocaleDateString()}
-                        </p>
+
+                      <div className="text-right flex flex-col gap-1">
+                        {/* Display INR */}
+                        {(balance.INR > 0.01 || balance.INR < -0.01) && (
+                          <div>
+                            <p className="text-[9px] uppercase font-semibold tracking-wider text-slate-550">
+                              {balance.INR > 0 ? 'owed' : 'owe'} (INR)
+                            </p>
+                            <p className={`font-extrabold text-xs mt-0.5 ${balance.INR > 0 ? 'text-emerald-450' : 'text-rose-455'}`}>
+                              ₹{Math.abs(balance.INR).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* Display USD */}
+                        {(balance.USD > 0.01 || balance.USD < -0.01) && (
+                          <div>
+                            <p className="text-[9px] uppercase font-semibold tracking-wider text-slate-550">
+                              {balance.USD > 0 ? 'owed' : 'owe'} (USD)
+                            </p>
+                            <p className={`font-extrabold text-xs mt-0.5 ${balance.USD > 0 ? 'text-emerald-455' : 'text-rose-455'}`}>
+                              ${Math.abs(balance.USD).toFixed(2)}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Settled up */}
+                        {Math.abs(balance.INR || 0) <= 0.01 && Math.abs(balance.USD || 0) <= 0.01 && (
+                          <div>
+                            <p className="text-[9px] uppercase font-semibold tracking-wider text-slate-650">settled up</p>
+                            <p className="font-bold text-slate-550 text-xs mt-0.5">₹0.00</p>
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    </Link>
 
-                    <div className="text-right flex flex-col gap-1">
-                      {/* Display INR */}
-                      {(balance.INR > 0.01 || balance.INR < -0.01) && (
-                        <div>
-                          <p className="text-[9px] uppercase font-semibold tracking-wider text-slate-550">
-                            {balance.INR > 0 ? 'owed' : 'owe'} (INR)
-                          </p>
-                          <p className={`font-extrabold text-xs mt-0.5 ${balance.INR > 0 ? 'text-emerald-450' : 'text-rose-455'}`}>
-                            ₹{Math.abs(balance.INR).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </p>
-                        </div>
-                      )}
-                      
-                      {/* Display USD */}
-                      {(balance.USD > 0.01 || balance.USD < -0.01) && (
-                        <div>
-                          <p className="text-[9px] uppercase font-semibold tracking-wider text-slate-550">
-                            {balance.USD > 0 ? 'owed' : 'owe'} (USD)
-                          </p>
-                          <p className={`font-extrabold text-xs mt-0.5 ${balance.USD > 0 ? 'text-emerald-455' : 'text-rose-455'}`}>
-                            ${Math.abs(balance.USD).toFixed(2)}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Settled up */}
-                      {Math.abs(balance.INR || 0) <= 0.01 && Math.abs(balance.USD || 0) <= 0.01 && (
-                        <div>
-                          <p className="text-[9px] uppercase font-semibold tracking-wider text-slate-650">settled up</p>
-                          <p className="font-bold text-slate-550 text-xs mt-0.5">₹0.00</p>
-                        </div>
-                      )}
-                    </div>
-                  </Link>
+                    <button
+                      onClick={(e) => handleDeleteGroup(e, group.id, group.name)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-red-950/20 hover:bg-red-950/60 border border-red-900/30 hover:border-red-900 text-rose-455 hover:text-rose-400 transition-all opacity-100 md:opacity-0 md:group-hover/card:opacity-100 focus:opacity-100 z-10"
+                      title={`Delete ${group.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 );
               })}
             </div>
