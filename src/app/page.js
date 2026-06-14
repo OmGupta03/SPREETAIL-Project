@@ -111,7 +111,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-950 min-h-screen">
+    <div className="flex-1 flex flex-col bg-slate-950 min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950">
       {/* Navbar */}
       <header className="sticky top-0 z-10 bg-slate-900/80 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 lg:px-8 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -154,10 +154,12 @@ export default function Dashboard() {
         </div>
 
         {/* 1. Balances Summary Panel */}
-        <section className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-900/40 border border-slate-850 rounded-2xl p-6 md:p-8 shadow-xl">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <section className="relative overflow-hidden bg-gradient-to-br from-slate-900/90 via-slate-900/50 to-slate-950 border border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-xl">
+          <div className="absolute top-[-40%] right-[-10%] h-[180px] w-[180px] rounded-full bg-emerald-500/10 blur-[60px] pointer-events-none"></div>
+          <div className="absolute bottom-[-30%] left-[5%] h-[140px] w-[140px] rounded-full bg-indigo-500/10 blur-[50px] pointer-events-none"></div>
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Overall Balance</h2>
+              <h2 className="text-xs font-semibold text-slate-450 uppercase tracking-wider">Overall Balance</h2>
               <div className={`text-4xl font-extrabold mt-2 tracking-tight ${
                 overallBalance > 0.01 
                   ? 'text-emerald-400' 
@@ -168,7 +170,7 @@ export default function Dashboard() {
                 {overallBalance > 0.01 ? '+' : ''}
                 ${overallBalance.toFixed(2)}
               </div>
-              <p className="text-xs text-slate-400 mt-1.5">Net balance aggregated across all your groups.</p>
+              <p className="text-xs text-slate-500 mt-1.5">Net balance aggregated across all your groups.</p>
             </div>
 
             <div className="grid grid-cols-2 md:flex items-center gap-4 md:gap-8 border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-8">
@@ -242,18 +244,18 @@ export default function Dashboard() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {groups.map((group) => {
                 const balance = groupBalances[group.id] || 0;
                 return (
                   <Link
                     key={group.id}
                     href={`/groups/${group.id}`}
-                    className="group flex items-center justify-between p-5 bg-slate-900/40 hover:bg-slate-900 border border-slate-850 hover:border-slate-800 rounded-2xl transition-all shadow-md hover:shadow-lg"
+                    className="group flex items-center justify-between p-6 bg-slate-900/30 hover:bg-slate-900/60 border border-slate-850/60 hover:border-emerald-500/30 rounded-2xl transition-all duration-300 hover:-translate-y-1 shadow-lg hover:shadow-emerald-500/5"
                   >
                     <div className="flex items-center space-x-4">
-                      <div className="h-11 w-11 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300 group-hover:bg-emerald-500 group-hover:text-slate-950 transition-all duration-350">
-                        <Users className="h-5 w-5" />
+                      <div className="h-12 w-12 rounded-xl bg-slate-850 border border-slate-800 flex items-center justify-center text-slate-350 group-hover:bg-gradient-to-tr group-hover:from-emerald-500 group-hover:to-teal-400 group-hover:text-slate-950 transition-all duration-300 shadow-md">
+                        <Users className="h-5.5 w-5.5" />
                       </div>
                       <div>
                         <h3 className="font-bold text-white text-base group-hover:text-emerald-450 transition-colors">
@@ -268,18 +270,18 @@ export default function Dashboard() {
                     <div className="text-right">
                       {balance > 0.01 ? (
                         <div>
-                          <p className="text-xs text-slate-400">you are owed</p>
-                          <p className="font-bold text-emerald-400 text-sm">${balance.toFixed(2)}</p>
+                          <p className="text-[10px] uppercase font-semibold tracking-wider text-slate-500">you are owed</p>
+                          <p className="font-extrabold text-emerald-450 text-sm mt-0.5">${balance.toFixed(2)}</p>
                         </div>
                       ) : balance < -0.01 ? (
                         <div>
-                          <p className="text-xs text-slate-400">you owe</p>
-                          <p className="font-bold text-rose-400 text-sm">${Math.abs(balance).toFixed(2)}</p>
+                          <p className="text-[10px] uppercase font-semibold tracking-wider text-slate-500">you owe</p>
+                          <p className="font-extrabold text-rose-400 text-sm mt-0.5">${Math.abs(balance).toFixed(2)}</p>
                         </div>
                       ) : (
                         <div>
-                          <p className="text-xs text-slate-500">settled up</p>
-                          <p className="font-bold text-slate-450 text-sm">$0.00</p>
+                          <p className="text-[10px] uppercase font-semibold tracking-wider text-slate-650">settled up</p>
+                          <p className="font-bold text-slate-550 text-sm mt-0.5">$0.00</p>
                         </div>
                       )}
                     </div>

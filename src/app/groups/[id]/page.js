@@ -488,7 +488,7 @@ export default function GroupDetails() {
   ledger.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   return (
-    <div className="flex-1 flex bg-slate-950 min-h-screen relative overflow-hidden">
+    <div className="flex-1 flex bg-slate-950 min-h-screen relative overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950">
       
       {/* Main Content Pane */}
       <div className={`flex-1 flex flex-col transition-all duration-300 ${selectedExpense ? 'mr-0 lg:mr-[400px]' : ''}`}>
@@ -547,24 +547,27 @@ export default function GroupDetails() {
           <div className="space-y-6 md:col-span-1">
             
             {/* Net Balance Status summary card */}
-            <div className="p-6 bg-slate-900 border border-slate-850 rounded-2xl shadow-xl">
-              <h2 className="text-xs font-semibold text-slate-450 uppercase tracking-wider">My Group Balance</h2>
-              <div className={`text-3xl font-extrabold mt-1.5 tracking-tight ${
-                myBalance > 0.01 
-                  ? 'text-emerald-400' 
-                  : myBalance < -0.01 
-                  ? 'text-rose-400' 
-                  : 'text-slate-350'
-              }`}>
-                {myBalance > 0.01 ? '+' : ''}${myBalance.toFixed(2)}
+            <div className="relative overflow-hidden p-6 bg-gradient-to-br from-slate-900/90 via-slate-900/50 to-slate-950 border border-slate-800/80 rounded-2xl shadow-xl backdrop-blur-xl">
+              <div className="absolute top-[-30%] right-[-10%] h-[120px] w-[120px] rounded-full bg-emerald-500/5 blur-[40px] pointer-events-none"></div>
+              <div className="relative z-10">
+                <h2 className="text-xs font-semibold text-slate-450 uppercase tracking-wider">My Group Balance</h2>
+                <div className={`text-3xl font-extrabold mt-1.5 tracking-tight ${
+                  myBalance > 0.01 
+                    ? 'text-emerald-400' 
+                    : myBalance < -0.01 
+                    ? 'text-rose-400' 
+                    : 'text-slate-350'
+                }`}>
+                  {myBalance > 0.01 ? '+' : ''}${myBalance.toFixed(2)}
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  {myBalance > 0.01 
+                    ? 'You are owed money in this group' 
+                    : myBalance < -0.01 
+                    ? 'You owe money in this group' 
+                    : 'You are completely settled up!'}
+                </p>
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                {myBalance > 0.01 
-                  ? 'You are owed money in this group' 
-                  : myBalance < -0.01 
-                  ? 'You owe money in this group' 
-                  : 'You are completely settled up!'}
-              </p>
               
               <button
                 onClick={() => setIsSettleOpen(true)}
