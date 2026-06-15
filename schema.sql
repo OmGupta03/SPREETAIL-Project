@@ -1,4 +1,4 @@
--- PostgreSQL Database Schema for Splitwise Clone & Expense Manager (Updated)
+-- PostgreSQL Database Schema for PayBack & Expense Manager (Updated)
 -- Paste this script into your Supabase SQL Editor and run it.
 
 -- =========================================================================

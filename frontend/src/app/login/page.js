@@ -68,7 +68,7 @@ export default function LoginPage() {
             <Wallet className="h-8 w-8" />
           </div>
           <h2 className="text-3xl font-extrabold text-white tracking-tight">
-            {isSignUp ? 'Create your account' : 'Sign in to Splitwise'}
+            {isSignUp ? 'Create your account' : 'Sign in to PayBack'}
           </h2>
           <p className="mt-2 text-sm text-slate-400">
             {isSignUp ? 'Already have an account? ' : "Don't have an account? "}

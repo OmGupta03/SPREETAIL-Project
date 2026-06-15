@@ -9,8 +9,8 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata = {
-  title: "Splitwise Clone | Settle Debts & Track Expenses",
-  description: "A simplified, modern Splitwise clone that tracks group expenses, balances, settlements, and lets members chat in real-time.",
+  title: "PayBack | Settle Debts & Track Expenses",
+  description: "A simplified, modern app that tracks group expenses, balances, settlements, and lets members chat in real-time.",
 };
 
 export default function RootLayout({ children }) {

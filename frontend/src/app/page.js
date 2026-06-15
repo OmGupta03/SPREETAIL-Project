@@ -154,9 +154,9 @@ export default function Dashboard() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-md">
-              <span className="font-extrabold text-lg">S</span>
+              <span className="font-extrabold text-lg">P</span>
             </div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Splitwise</h1>
+            <h1 className="text-xl font-bold text-white tracking-tight">PayBack</h1>
           </div>
 
           <div className="flex items-center space-x-4">
