@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "install:all": "npm install --prefix frontend && npm install --prefix backend",
+    "build:frontend": "npm run build --prefix frontend",
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:backend": "npm run dev --prefix backend",
-    "dev": "npx concurrently \"npm run dev:frontend\" \"npm run dev:backend\""
+    "dev": "npx concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "build": "npm run build --prefix frontend"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
